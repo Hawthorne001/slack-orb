@@ -8,12 +8,13 @@ usage:
   orbs:
     slack: circleci/slack@5.0
   jobs:
-    notify:
+    scheduled_notify:
       docker:
         - image: cimg/base:current
       steps:
         - slack/notify:
             event: always
+            scheduled_offset_seconds: 30 # 30 seconds after the job starts
             custom: |
               {
                 "blocks": [
@@ -22,7 +23,7 @@ usage:
                     "fields": [
                       {
                         "type": "plain_text",
-                        "text": "*This is a text notification*",
+                        "text": "*This is a scheduled text notification*",
                         "emoji": true
                       }
                     ]
@@ -32,5 +33,5 @@ usage:
   workflows:
     send-notification:
       jobs:
-        - notify:
+        - scheduled_notify:
             context: slack-secrets

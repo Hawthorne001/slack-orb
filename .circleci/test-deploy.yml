@@ -24,6 +24,12 @@ jobs:
       - checkout
       - slack/notify:
           debug: true
+          step_name: "Initial message with thread"
+          template: basic_success_1
+          event: always
+          thread_id: orb-testing-thread-<${CIRCLE_SHA1}>
+      - slack/notify:
+          debug: true
           step_name: "Custom template with group mention"
           event: always
           custom: |
@@ -70,6 +76,16 @@ jobs:
           step_name: "Basic on hold template"
           template: basic_on_hold_1
           event: always
+      - run:
+          name: Generate and Export Slack Message
+          command: |
+            export SLACK_MESSAGE=$(node src/tests/generate-payload.js | jq -c .)
+            echo "export SLACK_MESSAGE='$SLACK_MESSAGE'" >> $BASH_ENV          
+      - slack/notify:
+          debug: true
+          step_name: "Custom template generated dynamicly"
+          event: pass
+          custom: $SLACK_MESSAGE
       - slack/notify:
           debug: true
           step_name: "Custom template with env var in the message"
@@ -86,8 +102,26 @@ jobs:
                 }
               ]
             }
+      - slack/notify:
+          event: always
+          debug: true
+          step_name: "Custom template with scheduled offset"
+          scheduled_offset_seconds: 600 # 600 seconds after the job starts
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Sample sent using schedule offset after 5 minutes >"
+                  }
+                }
+              ]
+            }
       - run:
           name: Dynamically populate the mention and export the template as an environment variable
+          shell: bash -eo pipefail
           command: |
             echo 'export COMMIT_MESSAGE="This text comes from an environment variable"' >> $BASH_ENV
             echo 'export SLACK_PARAM_MENTIONS="$COMMIT_MESSAGE"' >> $BASH_ENV
@@ -122,6 +156,26 @@ jobs:
                   "text": {
                     "type": "mrkdwn",
                     "text": "This message should show over multiple lines: $MULTILINE_STRING"
+                  }
+                }
+              ]
+            }
+      - run:
+          name: Export variable with a multiline string and carriage
+          command: |
+            printf '%s\n' 'export MULTILINE_STRING_CARRIAGE=$(printf "%s\\r\\n" "Line 1." "Line 2." "Line 3.")' >> "$BASH_ENV"
+      - slack/notify:
+          debug: true
+          step_name: "Notify with multiline string and carriage"
+          event: pass
+          custom: >
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "This message should show over multiple lines despite carriage: $MULTILINE_STRING_CARRIAGE"
                   }
                 }
               ]
@@ -211,7 +265,13 @@ workflows:
           filters: *filters
           matrix:
             parameters:
-              runner: [cimg, mac, alpine, windows]
+              runner: [cimg, mac, alpine, windows, machine]
+      - slack/on-hold:
+          context: SLACK_NOTIFICATIONS_TEST
+          debug: true
+          step_name: "On hold with thread"
+          template: basic_success_1
+          thread_id: orb-testing-thread-<${CIRCLE_SHA1}>
       - orb-tools/pack:
           filters: *release-filters
       - orb-tools/publish:
@@ -224,6 +284,9 @@ workflows:
           context: orb-publisher
           filters: *release-filters
 executors:
+  machine:
+    machine:
+      image: ubuntu-2004:current
   cimg:
     docker:
       - image: cimg/base:current
@@ -238,4 +301,4 @@ executors:
     machine:
       image: windows-server-2019-vs2019:current
       resource_class: windows.medium
-      shell: bash.exe
+      shell: powershell.exe

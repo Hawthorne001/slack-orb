@@ -57,9 +57,7 @@ The Slack Orb comes with a number of included templates to get your started with
 
 Limit Slack notifications to particular branches with the "branch_pattern" or "tag_pattern" parameter.
 
-```
-A comma separated list of regex matchable branch or tag names. Notifications will only be sent if sent from a job from these branches/tags. By default ".+" will be used to match all branches/tags. Pattern must match the full string, no partial matches. Keep in mind that "branch_pattern" and "tag_pattern" are mutually exclusive.
-```
+A comma separated list of regex matchable branch or tag names. Notifications will only be sent if sent from a job from these branches/tags. Pattern must match the full string, no partial matches. Keep in mind that "branch_pattern" and "tag_pattern" are mutually exclusive.
 
 See [usage examples](https://circleci.com/developer/orbs/orb/circleci/slack#usage-examples).
 
@@ -107,6 +105,32 @@ Post replies in threads with a special parameter `thread_id`. Including this par
           ]
         }
 ```
+
+## Scheduled Message
+
+Set the `scheduled_offset_seconds` special parameter to a number of seconds if you want to post a scheduled message. Example:
+
+  ```yaml
+- slack/notify:
+      event: always
+      scheduled_offset_seconds: 30
+      custom: |
+        {
+          "blocks": [
+            {
+              "type": "section",
+              "fields": [
+                {
+                  "type": "plain_text",
+                  "text": "*This is a text notification*",
+                  "emoji": true
+                }
+              ]
+            }
+          ]
+        }
+  ```
+
 
 ---
 

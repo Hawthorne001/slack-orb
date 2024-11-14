@@ -29,14 +29,14 @@ parameters:
     default: "always"
   branch_pattern:
     description: |
-      A comma separated list of regex matchable branch names. Notifications will only be sent if sent from a job from these branches. By default ".+" will be used to match all branches. Pattern must match the full string, no partial matches.
+      A comma separated list of regex matchable branch names. Notifications will only be sent if sent from a job from these branches. Pattern must match the full string, no partial matches.
     type: string
-    default: ".+"
+    default: ""
   tag_pattern:
     description: |
-      A comma separated list of regex matchable tag names. Notifications will only be sent if sent from a job from these branches. By default ".+" will be used to match all tags. Pattern must match the full string, no partial matches.
+      A comma separated list of regex matchable tag names. Notifications will only be sent if sent from a job from these branches. Pattern must match the full string, no partial matches.
     type: string
-    default: ".+"
+    default: ""
   invert_match:
     description: |
       Invert the branch and tag patterns.
@@ -63,6 +63,7 @@ parameters:
       default: true
   debug:
       description: |
+       Runs scripts in debug mode for bash.
        Enable to view full payload being sent to Slack and response being received from the API call.
        Redacted content can be viewed by re-running the job with SSH and accessing the log files referenced in the job output.
        When run in a persistent build environment such as CircleCI Runner, these debug log files may remain in the system's temporary filesystem indefinitely and accumulate over time.
@@ -85,13 +86,28 @@ parameters:
       Any subsequent `notify` usage with the same identifier will be posted within the initial message's thread.
       `thread_id` should be set to any arbitrary string to help you identify different threads. See examples for more information.
       Enabling thread messages with this parameter implies using a very small amount of cacheing: ~200 B
+  scheduled_offset_seconds:
+    type: integer
+    default: 0
+    description: |
+      When set, the notification is a scheduled message.
+  retries:
+    type: integer
+    default: 0
+    description: The amount of retries when posting the message to slack. Defaults to zero.
+  retry_delay:
+      type: integer
+      default: 30
+      description: The amount of seconds to wait between retries. Defaults to 30.
 steps:
   - run:
+      shell: bash -eo pipefail
       when: on_fail
       name: Slack - Detecting Job Status (FAIL)
       command: |
         echo 'export CCI_STATUS="fail"' > /tmp/SLACK_JOB_STATUS
   - run:
+      shell: bash -eo pipefail
       when: on_success
       name: Slack - Detecting Job Status (PASS)
       command: |
@@ -103,11 +119,15 @@ steps:
       steps:
         - restore_cache:
             keys:
-              - cache-<< parameters.thread_id >>-{{ .Environment.CIRCLE_WORKFLOW_ID }}
+              - cache-<< parameters.thread_id >>-{{ .Environment.CIRCLE_PIPELINE_ID }}
+            when: always
   - run:
       when: always
+      shell: bash -eo pipefail
       name: << parameters.step_name >>
       environment:
+        SLACK_PARAM_RETRIES: <<parameters.retries>>
+        SLACK_PARAM_RETRY_DELAY: <<parameters.retry_delay>>
         SLACK_PARAM_EVENT: "<<parameters.event>>"
         SLACK_PARAM_TEMPLATE: "<<parameters.template>>"
         SLACK_PARAM_CUSTOM: "<<parameters.custom>>"
@@ -120,6 +140,7 @@ steps:
         SLACK_PARAM_DEBUG: "<<parameters.debug>>"
         SLACK_PARAM_CIRCLECI_HOST: "<<parameters.circleci_host>>"
         SLACK_PARAM_THREAD: "<<parameters.thread_id>>"
+        SLACK_PARAM_OFFSET: "<<parameters.scheduled_offset_seconds>>"
         SLACK_SCRIPT_NOTIFY: "<<include(scripts/notify.sh)>>"
         SLACK_SCRIPT_UTILS: "<<include(scripts/utils.sh)>>"
         # import pre-built templates using the orb-pack local script include.
@@ -134,6 +155,7 @@ steps:
           equal: [ "", <<parameters.thread_id>> ]
       steps:
         - save_cache:
-            key: cache-<< parameters.thread_id >>-{{ .Environment.CIRCLE_WORKFLOW_ID }}
+            key: cache-<< parameters.thread_id >>-{{ .Environment.CIRCLE_PIPELINE_ID }}
             paths:
               - /tmp/SLACK_THREAD_INFO
+            when: always
